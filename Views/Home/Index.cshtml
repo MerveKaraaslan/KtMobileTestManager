@@ -1,0 +1,405 @@
+@model KtMobileTestManager.Models.TrackerViewModel
+@{
+    ViewData["Title"] = "Mobil Bankacılık - Test Portalı";
+    var totalCount = Model?.TotalScenariosCount ?? 0;
+    var passedCount = Model?.PassedCount ?? 0;
+    var failedCount = Model?.FailedCount ?? 0;
+    var pendingCount = Model?.PendingCount ?? 0;
+    var filteredList = Model?.FilteredScenarios ?? new List<KtMobileTestManager.Models.TestScenario>();
+    var executedList = Model?.ExecutedScenarios ?? new List<KtMobileTestManager.Models.TestScenario>();
+    var hasFiltered = Model?.HasFiltered ?? false;
+    var selectedScreen = Model?.SelectedScreen ?? "";
+    var selectedModule = Model?.SelectedModule ?? "";
+    var executedModuleFilter = Model?.ExecutedModuleFilter ?? "Tümü";
+}
+
+<div class="container-fluid py-4 px-4">
+  <!-- ÜST HEADER PANELİ -->
+  <div class="p-3 mb-4 rounded shadow-sm text-white d-flex justify-content-between align-items-center" style="background-color: #006b54;">
+    <div>
+      <h4 class="fw-bold mb-0">Mobil Bankacılık - Test Senaryoları ve Kabul Kriteri Takip Portalı</h4>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-light text-dark px-3 py-2 fw-semibold">Toplam: @totalCount Senaryo</span>
+      <span class="badge bg-success px-3 py-2 fw-semibold">✓ @passedCount Geçti</span>
+      <span class="badge bg-danger px-3 py-2 fw-semibold">✗ @failedCount Kaldı</span>
+      <span class="badge bg-warning text-dark px-3 py-2 fw-semibold">⏳ @pendingCount Bekliyor</span>
+      
+      <button class="btn btn-outline-light btn-sm fw-bold ms-2 px-3" data-bs-toggle="modal" data-bs-target="#createScenarioModal">
+        + Yeni Senaryo Ekle
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- SOL PANEL: DİNAMİK FİLTRELEME FORMU -->
+    <div class="col-lg-3 col-md-4">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-0">
+          <h6 class="fw-bold mb-0 text-success">Ekran ve Modül Seçimi</h6>
+        </div>
+        <div class="card-body pt-0">
+          <form method="get" asp-action="Index">
+            
+            <!-- Ana Ekran Dropdown -->
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Ana Ekran Seçiniz</label>
+              <select id="mainModuleSelect" name="module" class="form-select form-select-sm" onchange="onMainModuleChange()">
+                <option value="Seçiniz">-- Ana Ekran Seçin --</option>
+                <option value="Hesaplar" selected="@(selectedModule == "Hesaplar")">Hesaplar</option>
+                <option value="Para Transferleri" selected="@(selectedModule == "Para Transferleri")">Para Transferleri</option>
+                <option value="Döviz ve Altın İşlemleri" selected="@(selectedModule == "Döviz ve Altın İşlemleri")">Döviz ve Altın İşlemleri</option>
+                <option value="Kartlar" selected="@(selectedModule == "Kartlar")">Kartlar</option>
+                <option value="Ayarlar" selected="@(selectedModule == "Ayarlar")">Ayarlar</option>
+                <option value="Arkadaşına Öner" selected="@(selectedModule == "Arkadaşına Öner")">Arkadaşına Öner</option>
+                <option value="Dokümanlar" selected="@(selectedModule == "Dokümanlar")">Dokümanlar</option>
+                <option value="Bize Yazın" selected="@(selectedModule == "Bize Yazın")">Bize Yazın</option>
+              </select>
+            </div>
+
+            <!-- Alt Ekran Dropdown -->
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-secondary">Alt Ekran Seçiniz</label>
+              <select id="subScreenSelect" name="screen" class="form-select form-select-sm" onchange="checkButtonState()">
+                <option value="Seçiniz">-- Alt Ekran Seçiniz --</option>
+              </select>
+            </div>
+
+            <!-- ALT EKRAN SEÇİLMEDEN AKTİF OLMAYAN BUTON -->
+            <button id="btnFetchScenarios" type="submit" class="btn btn-success btn-sm w-100 fw-bold" disabled>
+              🔍 Senaryoları Getir
+            </button>
+            <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm w-100 mt-2">Seçimi Temizle</a>
+          </form>
+        </div>
+      </div>
+
+      <!-- BİLGİLENDİRME KUTUSU -->
+      <div class="card border-0 shadow-sm p-3 bg-light rounded text-secondary" style="font-size: 0.85rem;">
+        İlgili mobil ekranın kabul kriterlerini görmek için ekran ve modül seçimi yapıp "Senaryoları Getir" butonuna basınız.
+      </div>
+    </div>
+
+    <!-- SAĞ PANEL: TEST SENARYOLARI TABLOSU -->
+    <div class="col-lg-9 col-md-8">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">
+              @(hasFiltered ? $"{selectedScreen} - Kabul Kriterleri & Test Senaryoları" : "Test Senaryoları ve Kabul Kriterleri")
+            </h6>
+            <small class="text-muted">
+              @(hasFiltered ? $"Bu ekrana ait toplam {filteredList.Count} senaryo listelendi." : "Lütfen sol panelden seçim yapıp 'Senaryoları Getir' butonuna basınız.")
+            </small>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small">
+              <tr>
+                <th style="width: 10%;">ID</th>
+                <th style="width: 25%;">Senaryo & Kriter</th>
+                <th style="width: 30%;">Beklenen Sonuç</th>
+                <th style="width: 20%;">Analist Notu</th>
+                <th style="width: 15%;" class="text-center">Durum & İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (!hasFiltered)
+              {
+                <tr>
+                  <td colspan="5" class="text-center py-5 text-muted">
+                    <small>İlgili mobil ekranın kabul kriterlerini görmek için ekran ve modül seçimi yapıp "Senaryoları Getir" butonuna basınız.</small>
+                  </td>
+                </tr>
+              }
+              else if (!filteredList.Any())
+              {
+                <tr>
+                  <td colspan="5" class="text-center py-5 text-muted">
+                    <p class="mb-0 fw-semibold">Bu ekrana ait tanımlı test senaryosu bulunamadı. Sağ üstten yeni senaryo ekleyebilirsiniz.</p>
+                  </td>
+                </tr>
+              }
+              else
+              {
+                @foreach (var item in filteredList)
+                {
+                  <tr>
+                    <td><span class="badge bg-light text-dark border">@item.Id</span></td>
+                    <td>
+                      <strong class="text-dark d-block small">@item.Title</strong>
+                      <small class="text-secondary" style="font-size: 0.75rem;">@item.AcceptanceCriteria</small>
+                    </td>
+                    <td>
+                      <small class="text-muted fst-italic" style="font-size: 0.8rem;">@item.ExpectedResult</small>
+                    </td>
+                    <td>
+                      <small class="text-dark">@(string.IsNullOrEmpty(item.TesterNote) ? "— Not Girilmedi —" : item.TesterNote)</small>
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-sm @(item.Status switch {
+                        "Geçti" => "btn-success",
+                        "Kaldı" => "btn-danger",
+                        _ => "btn-warning text-dark"
+                      }) fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modal_@item.Id">
+                        @item.Status ✎
+                      </button>
+
+                      <!-- DURUM GÜNCELLEME MODALI -->
+                      <div class="modal fade text-start" id="modal_@item.Id" tabindex="-1">
+                        <div class="modal-dialog">
+                          <div class="modal-content">
+                            <form asp-action="UpdateStatus" method="post">
+                              <input type="hidden" name="id" value="@item.Id" />
+                              <input type="hidden" name="returnModule" value="@selectedModule" />
+                              <input type="hidden" name="returnScreen" value="@selectedScreen" />
+                              <input type="hidden" name="returnExecutedModule" value="@executedModuleFilter" />
+                              <div class="modal-header">
+                                <h6 class="modal-title fw-bold">Test Durumu Güncelle: @item.Id</h6>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                              </div>
+                              <div class="modal-body">
+                                <p class="small text-muted mb-2"><strong>Senaryo:</strong> @item.Title</p>
+                                <div class="mb-3">
+                                  <label class="form-label small fw-bold">Test Sonucu</label>
+                                  <select name="status" class="form-select form-select-sm">
+                                    <option value="Geçti" selected="@(item.Status == "Geçti")">Geçti (Passed)</option>
+                                    <option value="Kaldı" selected="@(item.Status == "Kaldı")">Kaldı (Failed)</option>
+                                    <option value="Bekliyor" selected="@(item.Status == "Bekliyor")">Bekliyor (Pending)</option>
+                                  </select>
+                                </div>
+                                <div class="mb-3">
+                                  <label class="form-label small fw-bold">Analist Notu / Hata Açıklaması</label>
+                                  <textarea name="testerNote" class="form-control form-control-sm" rows="3" placeholder="Örn: Buton kilitlendi...">@item.TesterNote</textarea>
+                                </div>
+                              </div>
+                              <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Kapat</button>
+                                <button type="submit" class="btn btn-success btn-sm fw-bold">Kaydet</button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AYRI LİSTE: TAMAMLANANLAR -->
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h6 class="fw-bold mb-0 text-dark">📋 Tamamlanan Test Koşumları ve Bulgular Listesi</h6>
+        <small class="text-muted">Daha önce test edilip 'Geçti' veya 'Kaldı' olarak işaretlenmiş tüm senaryolar listelenir.</small>
+      </div>
+
+      <!-- Modül Filtresi -->
+      <form method="get" asp-action="Index" class="d-flex align-items-center gap-2">
+        <input type="hidden" name="module" value="@selectedModule" />
+        <input type="hidden" name="screen" value="@selectedScreen" />
+        <label class="small text-secondary fw-bold text-nowrap">Modül Filtresi:</label>
+        <select name="executedModule" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="Tümü" selected="@(executedModuleFilter == "Tümü")">-- Tümü (Hepsi) --</option>
+          <option value="Hesaplar" selected="@(executedModuleFilter == "Hesaplar")">Hesaplar</option>
+          <option value="Para Transferleri" selected="@(executedModuleFilter == "Para Transferleri")">Para Transferleri</option>
+          <option value="Döviz ve Altın İşlemleri" selected="@(executedModuleFilter == "Döviz ve Altın İşlemleri")">Döviz ve Altın İşlemleri</option>
+          <option value="Kartlar" selected="@(executedModuleFilter == "Kartlar")">Kartlar</option>
+          <option value="Ayarlar" selected="@(executedModuleFilter == "Ayarlar")">Ayarlar</option>
+          <option value="Arkadaşına Öner" selected="@(executedModuleFilter == "Arkadaşına Öner")">Arkadaşına Öner</option>
+          <option value="Dokümanlar" selected="@(executedModuleFilter == "Dokümanlar")">Dokümanlar</option>
+          <option value="Bize Yazın" selected="@(executedModuleFilter == "Bize Yazın")">Bize Yazın</option>
+        </select>
+        <span class="badge bg-secondary px-3 py-2 text-nowrap">@executedList.Count Koşum</span>
+      </form>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light small">
+          <tr>
+            <th style="width: 10%;">ID</th>
+            <th style="width: 15%;">Ekran</th>
+            <th style="width: 25%;">Senaryo Başlığı</th>
+            <th style="width: 10%;" class="text-center">Durum</th>
+            <th style="width: 25%;">Kaydedilen Analist Notu</th>
+            <th style="width: 15%;">Koşum Tarihi</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (!executedList.Any())
+          {
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted small">
+                Henüz tamamlanmış (Geçti / Kaldı) bir test koşumu bulunmuyor.
+              </td>
+            </tr>
+          }
+          @foreach (var exc in executedList)
+          {
+            <tr>
+              <td><span class="badge bg-light text-dark border">@exc.Id</span></td>
+              <td><small class="fw-bold text-secondary">@exc.SubScreen</small></td>
+              <td><span class="small fw-semibold text-dark">@exc.Title</span></td>
+              <td class="text-center">
+                <span class="badge @(exc.Status == "Geçti" ? "bg-success" : "bg-danger") px-3 py-1">
+                  @exc.Status
+                </span>
+              </td>
+              <td><small class="text-dark">@(string.IsNullOrEmpty(exc.TesterNote) ? "—" : exc.TesterNote)</small></td>
+              <td><small class="text-muted">@(exc.ExecutedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</small></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- YENİ SENARYO EKLEME MODAL FORMU -->
+<div class="modal fade" id="createScenarioModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form asp-action="CreateScenario" method="post">
+        <div class="modal-header text-white" style="background-color: #006b54;">
+          <h6 class="modal-title fw-bold">Yeni Test Senaryosu ve Kabul Kriteri Ekle</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Ana Ekran / Modül</label>
+              <select name="mainModule" id="modalMainSelect" class="form-select form-select-sm" onchange="updateModalSubScreens()" required>
+                <option value="Hesaplar">Hesaplar</option>
+                <option value="Para Transferleri">Para Transferleri</option>
+                <option value="Döviz ve Altın İşlemleri">Döviz ve Altın İşlemleri</option>
+                <option value="Kartlar">Kartlar</option>
+                <option value="Ayarlar">Ayarlar</option>
+                <option value="Arkadaşına Öner">Arkadaşına Öner</option>
+                <option value="Dokümanlar">Dokümanlar</option>
+                <option value="Bize Yazın">Bize Yazın</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Alt Ekran</label>
+              <select name="subScreen" id="modalSubSelect" class="form-select form-select-sm" required>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-bold">Senaryo / Kural Başlığı</label>
+              <input type="text" name="title" class="form-control form-control-sm" placeholder="Örn: Bakiye Güncellemesi" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-bold">Kabul Kriteri (Girdi Kısıtları & Şartlar)</label>
+              <textarea name="acceptanceCriteria" class="form-control form-control-sm" rows="2" placeholder="Örn: İşlem sonrasında bakiye düşmelidir..." required></textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-bold">Beklenen Sistem Sonucu</label>
+              <textarea name="expectedResult" class="form-control form-control-sm" rows="2" placeholder="Örn: Ekranda bakiye anında güncellenmelidir." required></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+          <button type="submit" class="btn btn-success btn-sm fw-bold">Senaryoyu Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  var subScreensMap = {
+    "Hesaplar": ["Hesaplarım", "Hesap Aç", "Hesap Adı Değiştir"],
+    "Para Transferleri": ["Kendi Hesabıma Transfer", "SEPA Transfer", "Kuveyt Türk Direkt", "Yurt Dışı Transfer", "Kayıtlı İşlemler", "Talimatlar"],
+    "Döviz ve Altın İşlemleri": ["Döviz ve Altın Al Sat", "Altın Alış Satış Talimatları"],
+    "Kartlar": ["Debit Kart", "Debit Kart Başvurusu", "Jetzz Card", "Jetzz Card Başvurusu"],
+    "Ayarlar": ["Dil Seçenekleri", "Bildirimler", "Face ID / Touch ID", "Profilim"],
+    "Arkadaşına Öner": ["Arkadaşına Öner"],
+    "Dokümanlar": ["Dokümanlar"],
+    "Bize Yazın": ["Bize Yazın"]
+  };
+
+  var serverSelectedScreen = "@Html.Raw(selectedScreen)";
+
+  function renderSubScreens(selectedModule, preselectScreen) {
+    var subSelect = document.getElementById("subScreenSelect");
+    if (!subSelect) return;
+    subSelect.innerHTML = "";
+
+    var defaultOpt = document.createElement("option");
+    defaultOpt.value = "Seçiniz";
+    defaultOpt.innerText = "-- Alt Ekran Seçiniz --";
+    subSelect.appendChild(defaultOpt);
+
+    if (subScreensMap[selectedModule]) {
+      subScreensMap[selectedModule].forEach(function(item) {
+        var opt = document.createElement("option");
+        opt.value = item;
+        opt.innerText = item;
+        if (preselectScreen && item === preselectScreen) {
+          opt.selected = true;
+        }
+        subSelect.appendChild(opt);
+      });
+    }
+
+    checkButtonState();
+  }
+
+  function onMainModuleChange() {
+    var mainSelect = document.getElementById("mainModuleSelect");
+    var selected = mainSelect.value;
+    renderSubScreens(selected, null);
+  }
+
+  function checkButtonState() {
+    var mainSelect = document.getElementById("mainModuleSelect");
+    var subSelect = document.getElementById("subScreenSelect");
+    var btn = document.getElementById("btnFetchScenarios");
+    if (!mainSelect || !subSelect || !btn) return;
+
+    var isMainValid = mainSelect.value && mainSelect.value !== "Seçiniz";
+    var isSubValid = subSelect.value && subSelect.value !== "Seçiniz";
+
+    if (isMainValid && isSubValid) {
+      btn.removeAttribute("disabled");
+    } else {
+      btn.setAttribute("disabled", "disabled");
+    }
+  }
+
+  function updateModalSubScreens() {
+    var modalMain = document.getElementById("modalMainSelect");
+    var modalSub = document.getElementById("modalSubSelect");
+    if (!modalMain || !modalSub) return;
+    var selected = modalMain.value;
+    modalSub.innerHTML = "";
+
+    if (subScreensMap[selected]) {
+      subScreensMap[selected].forEach(function(item) {
+        var opt = document.createElement("option");
+        opt.value = item;
+        opt.innerText = item;
+        modalSub.appendChild(opt);
+      });
+    }
+  }
+
+  window.onload = function() {
+    var mainSelect = document.getElementById("mainModuleSelect");
+    if (mainSelect) {
+      renderSubScreens(mainSelect.value, serverSelectedScreen);
+    }
+    updateModalSubScreens();
+  };
+</script>
